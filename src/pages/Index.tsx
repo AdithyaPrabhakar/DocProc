@@ -67,7 +67,7 @@ const Index = () => {
             <DocumentUpload onFilesProcessed={handleFilesProcessed} />
             <QueryProcessor 
               onQueryProcessed={handleQueryProcessed}
-              hasDocuments={uploadedFiles.some(f => f.status === 'processed')}
+              hasDocuments={uploadedFiles.length > 0}
             />
           </div>
 
