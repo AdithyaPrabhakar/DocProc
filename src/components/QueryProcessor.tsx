@@ -88,85 +88,117 @@ export const QueryProcessor = ({ onQueryProcessed, hasDocuments }: QueryProcesso
 
   const generateMockResult = (query: string): any => {
     const lowerQuery = query.toLowerCase();
-    
-    // Enhanced entity extraction
     const extractedEntities = extractEntitiesFromQuery(query);
     const processingTime = (2.1 + Math.random() * 2.5).toFixed(1);
     
-    // Determine procedure type and coverage
-    const procedureInfo = determineProcedureType(lowerQuery);
-    const policyDuration = extractedEntities.policy_duration || "Unknown";
-    const age = extractedEntities.age || "Unknown";
+    // Analyze based on realistic document content (Well Baby Well Mother Add-On)
+    const coverageAnalysis = analyzeQueryAgainstPolicy(lowerQuery, extractedEntities);
     
-    // Calculate waiting period compliance
-    const waitingPeriodCheck = checkWaitingPeriod(procedureInfo.waiting_period, policyDuration);
+    return {
+      decision: coverageAnalysis.decision,
+      amount: coverageAnalysis.amount,
+      confidence: coverageAnalysis.confidence,
+      justification: {
+        primary_clause: coverageAnalysis.primary_clause,
+        supporting_clauses: coverageAnalysis.supporting_clauses,
+        extracted_entities: extractedEntities
+      },
+      processing_time: `${processingTime} seconds`
+    };
+  };
+
+  const analyzeQueryAgainstPolicy = (query: string, entities: any) => {
+    // Based on typical Well Baby Well Mother Add-On policy content
+    const age = entities.age ? parseInt(entities.age) : null;
     
-    // Generate decision based on extracted information
-    if (procedureInfo.covered && waitingPeriodCheck.compliant) {
+    // Check if query relates to covered scenarios
+    const isNewbornCare = query.includes('newborn') || query.includes('baby') || 
+                         query.includes('infant') || (age !== null && age <= 1);
+    const isMaternalCare = query.includes('mother') || query.includes('maternal') || 
+                          query.includes('pregnancy') || query.includes('delivery');
+    const isAirAmbulance = query.includes('air ambulance') || query.includes('emergency transport');
+    
+    // Check for non-covered scenarios
+    const isChildOver1 = age !== null && age > 1 && age < 18;
+    const isAdult = age !== null && age >= 18;
+    const isCardiac = query.includes('heart') || query.includes('cardiac');
+    const isDeath = query.includes('died') || query.includes('death') || query.includes('mortality');
+    
+    if (isNewbornCare && !isDeath) {
       return {
         decision: 'APPROVED',
-        amount: procedureInfo.coverage_amount,
-        confidence: Math.min(0.95, 0.75 + (extractedEntities.completeness * 0.2)),
-        justification: {
-          primary_clause: procedureInfo.primary_clause,
-          supporting_clauses: [
-            `Section 2.1: Policy holder age ${age} meets eligibility criteria (18-65 years)`,
-            extractedEntities.location ? `Section 3.4: Geographic coverage includes ${extractedEntities.location}` : "Section 3.4: Geographic coverage verified",
-            `Section 5.1: Coverage amount ₹${procedureInfo.coverage_amount.toLocaleString()} within policy limits`,
-            waitingPeriodCheck.clause
-          ],
-          extracted_entities: extractedEntities
-        },
-        processing_time: `${processingTime} seconds`
+        amount: 50000,
+        confidence: 0.90,
+        primary_clause: "Well Baby coverage applies to newborns up to 30 days post-delivery",
+        supporting_clauses: [
+          "Coverage includes immediate newborn care expenses",
+          "Policy holder has valid maternal coverage"
+        ]
       };
-    } else if (procedureInfo.covered && !waitingPeriodCheck.compliant) {
+    }
+    
+    if (isMaternalCare && !isDeath) {
       return {
-        decision: 'REJECTED',
-        amount: 0,
-        confidence: Math.min(0.92, 0.70 + (extractedEntities.completeness * 0.22)),
-        justification: {
-          primary_clause: waitingPeriodCheck.rejection_clause,
-          supporting_clauses: [
-            `Current policy duration: ${policyDuration}`,
-            `Required waiting period: ${procedureInfo.waiting_period}`,
-            procedureInfo.secondary_clause || "Policy terms require compliance with waiting periods"
-          ],
-          extracted_entities: extractedEntities
-        },
-        processing_time: `${processingTime} seconds`
+        decision: 'APPROVED', 
+        amount: 75000,
+        confidence: 0.85,
+        primary_clause: "Well Mother coverage applies during pregnancy and delivery",
+        supporting_clauses: [
+          "Coverage includes prenatal and postnatal care",
+          "Delivery expenses covered under maternal benefits"
+        ]
       };
-    } else if (!procedureInfo.covered) {
-      return {
-        decision: 'REJECTED',
-        amount: 0,
-        confidence: Math.min(0.88, 0.65 + (extractedEntities.completeness * 0.23)),
-        justification: {
-          primary_clause: procedureInfo.exclusion_clause || "Procedure not covered under current policy terms",
-          supporting_clauses: [
-            "Section 7.1: Excluded procedures and treatments listed in policy document",
-            "Section 7.2: Coverage limitations apply to certain medical procedures"
-          ],
-          extracted_entities: extractedEntities
-        },
-        processing_time: `${processingTime} seconds`
-      };
-    } else {
+    }
+    
+    if (isAirAmbulance) {
       return {
         decision: 'REVIEW_REQUIRED',
         amount: null,
-        confidence: Math.max(0.45, extractedEntities.completeness * 0.8),
-        justification: {
-          primary_clause: "Insufficient information for automated decision - manual review required",
-          supporting_clauses: [
-            "Query lacks specific medical procedure details",
-            "Additional documentation required for accurate assessment",
-            "Human underwriter review recommended"
-          ],
-          extracted_entities: extractedEntities
-        },
-        processing_time: `${processingTime} seconds`
+        confidence: 0.70,
+        primary_clause: "Air ambulance coverage subject to emergency conditions and pre-approval",
+        supporting_clauses: [
+          "Must meet emergency criteria as defined in policy",
+          "Prior authorization may be required"
+        ]
       };
     }
+    
+    if (isChildOver1 || isAdult) {
+      return {
+        decision: 'REJECTED',
+        amount: 0,
+        confidence: 0.95,
+        primary_clause: "This add-on policy only covers newborns (up to 30 days) and maternal care",
+        supporting_clauses: [
+          `Age ${entities.age || 'specified'} falls outside coverage scope`,
+          "No coverage for individuals beyond newborn period"
+        ]
+      };
+    }
+    
+    if (isDeath || isCardiac) {
+      return {
+        decision: 'REJECTED',
+        amount: 0,
+        confidence: 0.95,
+        primary_clause: "Well Baby Well Mother Add-On does not cover mortality or cardiac events",
+        supporting_clauses: [
+          "Policy scope limited to routine maternal and newborn care",
+          "Life insurance benefits not included in this add-on"
+        ]
+      };
+    }
+    
+    return {
+      decision: 'REVIEW_REQUIRED',
+      amount: null,
+      confidence: 0.60,
+      primary_clause: "Query does not clearly match Well Baby Well Mother Add-On coverage scope",
+      supporting_clauses: [
+        "Manual review required to determine coverage eligibility",
+        "Additional documentation may be needed"
+      ]
+    };
   };
 
   const extractEntitiesFromQuery = (query: string) => {
